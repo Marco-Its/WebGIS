@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Verhältnis-Map</title>
+  <link rel="stylesheet" href="https://openlayers.org/en/v6.15.1/css/ol.css">
+  <script src="https://openlayers.org/en/v6.15.1/build/ol.js"></script>
+  <style>
+    html, body, #map {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+    }
+    header, footer {
+      background-color: #f8f8f8;
+      text-align: center;
+      padding: 10px 0;
+    }
+    header {
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+    footer {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      font-size: 0.9em;
+      color: #555;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: white;
+      padding: 10px;
+      border: 1px solid #ccc;
+      font-size: 0.9em;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+<header>Verhältnis Studierende zur Bevölkerung der Bundesländer</header>
+<div id="map"></div>
+<div id="info">Klicke auf die Bundesländer für weitere Informationen</div>
+<footer>Seminar WebGIS / Übung 03 / Marco Itschner / Universität Heidelberg</footer>
+<script>
+  const map = new ol.Map({
+    target: 'map',
+    layers: [
+      // Einbindung OSM
+      new ol.layer.Tile({
+        source: new ol.source.OSM(),
+      }),
+      // WMS-Layer-Einbindung
+      new ol.layer.Tile({
+        source: new ol.source.TileWMS({
+          url: 'http://osmatrix.geog.uni-heidelberg.de:8080/geoserver/mitschner/wms',
+          params: {
+            'LAYERS': 'mitschner:itschner_anteil_student_population_layer',
+            'TILED': true,
+          },
+          serverType: 'geoserver',
+        }),
+      }),
+    ],
+    view: new ol.View({
+      center: ol.proj.fromLonLat([10.0, 51.0]), 
+      zoom: 6,
+    }),
+  });
+  // Abfrage 
+  map.on('singleclick', function (evt) {
+    const viewResolution = map.getView().getResolution();
+    const url = map.getLayers().item(1).getSource().getFeatureInfoUrl(
+      evt.coordinate,
+      viewResolution,
+      'EPSG:3857', 
+      { 'INFO_FORMAT': 'application/json' }
+    );
+
+    if (url) {
+      fetch(url)
+        .then((response) => response.json())
+        .then((data) => {
+          const infoElement = document.getElementById('info');
+          if (data.features.length > 0) {
+            const properties = data.features[0].properties; //Spaltennamen des Layers
+            infoElement.innerHTML = `
+              <strong>Fakten:</strong><br>
+              Bundesland: ${properties.field_1}<br>
+              Bevölkerung: ${properties.population}<br>
+              Studierende: ${properties.studenten}<br>
+              Anteil: ${properties.anteil}%
+            `;
+          } else {
+            infoElement.innerHTML = 'Keine Informationen verfügbar.'; // Klicken außerhalb der Bundesländer
+          }
+        })
+    }
+  });
+</script>
+</body>
+</html>
